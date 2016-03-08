@@ -184,6 +184,9 @@ func (es *EventSource) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	conn := NewConn(wfcn)
 	conn.LastEventID = r.Header.Get("Last-Event-ID")
 
+	w.WriteHeader(http.StatusOK)
+	conn.Flush()
+
 	return es.Serve(conn, WriteEvent)
 }
 

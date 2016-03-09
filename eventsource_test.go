@@ -3,14 +3,12 @@ package eventsource
 import (
 	"testing"
 
-	"net/http"
 	"net/http/httptest"
 
 	"bytes"
-	"log"
-	"os"
+	// "log"
+	// "os"
 	"sync"
-	"time"
 )
 
 type TestResponseWriter struct {
@@ -25,46 +23,40 @@ func NewTestResponseWriter() *TestResponseWriter {
 	}
 }
 
-func (m *TestResponseWriter) CloseNotify() <-chan bool {
-	return m.gone
-}
+func (m *TestResponseWriter) CloseNotify() <-chan bool { return m.gone }
+func (m *TestResponseWriter) Close()                   { m.gone <- true }
 
-func (m *TestResponseWriter) Close() {
-	m.gone <- true
-}
-
-func TestSingleClient(t *testing.T) {
-	if testing.Verbose() {
-		Vlog = log.New(os.Stdout, "", log.LstdFlags)
-	}
+func TestClients(t *testing.T) {
+	// if testing.Verbose() {
+	// 	Vlog = log.New(os.Stdout, "", log.LstdFlags)
+	// }
 
 	es := New()
 
-	req, err := http.NewRequest("GET", "/", bytes.NewBufferString(""))
-	if err != nil {
-		t.Fatal(err)
-	}
+	nclients := 1000
 
-	n := 3000
 	starting := &sync.WaitGroup{}
 	stopping := &sync.WaitGroup{}
-	starting.Add(n)
-	stopping.Add(n)
+	starting.Add(nclients)
+	stopping.Add(nclients)
 
-	clients := make([]*TestResponseWriter, n, n)
+	clients := make([]*TestResponseWriter, nclients, nclients)
 
 	// process client
-	for i := 0; i < n; i += 1 {
+	for i := 0; i < nclients; i += 1 {
 		clients[i] = NewTestResponseWriter()
-		go func(w *TestResponseWriter) {
+		go func(w *TestResponseWriter, i int) {
+			conn := NewConn(w)
+			es.Join(conn)
 			starting.Done()
-			es.ServeHTTP(w, req)
+			conn.Serve(es)
+			es.Leave(conn)
 			stopping.Done()
-		}(clients[i])
+		}(clients[i], i)
 	}
 
 	Vlog.Println("Starting ES")
-	go es.Listen()
+	go es.Serve()
 
 	events := []Event{
 		{Data: "Hello", ID: "1", Event: "e1"},
@@ -76,14 +68,14 @@ func TestSingleClient(t *testing.T) {
 	Vlog.Println("Clients connecting")
 	starting.Wait()
 
-	<-time.After(100 * time.Millisecond)
-
 	Vlog.Println("Sending out events")
 	for _, e := range events {
-		es.Push(e)
+		done, err := es.Push(e)
+		if err != nil {
+			t.Error(err)
+		}
+		<-done
 	}
-
-	<-time.After(100 * time.Millisecond)
 
 	// disconnect clients
 	Vlog.Println("Clients leaving")
@@ -118,40 +110,38 @@ data: !!
 func BenchmarkIt(t *testing.B) {
 	es := New()
 
-	req, err := http.NewRequest("GET", "/", bytes.NewBufferString(""))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	n := 20
+	nclients := 1000
 	starting := &sync.WaitGroup{}
-	starting.Add(n)
+	starting.Add(nclients)
 
-	clients := make([]*TestResponseWriter, n, n)
+	clients := make([]*TestResponseWriter, nclients, nclients)
 
 	// process client
-	for i := 0; i < n; i += 1 {
+	for i := 0; i < nclients; i += 1 {
 		clients[i] = NewTestResponseWriter()
 		go func(w *TestResponseWriter) {
+			conn := NewConn(w)
+			es.Join(conn)
 			starting.Done()
-			es.ServeHTTP(w, req)
+			conn.Serve(es)
 		}(clients[i])
 	}
 
-	go es.Listen()
+	go es.Serve()
 
 	starting.Wait()
-	<-time.After(500 * time.Millisecond)
 
 	Vlog.Println("Sending out events")
 
 	t.StartTimer()
 	for i := 1; i < t.N; i += 1 {
-		es.Push(Event{Data: "Hello", ID: "1", Event: "e1"})
+		done, err := es.Push(Event{Data: "Hello", ID: "1", Event: "e1"})
+		if err != nil {
+			t.Error(err)
+		}
+		<-done
 	}
 	t.StopTimer()
-
-	<-time.After(500 * time.Millisecond)
 }
 
 func TestEventWriter(t *testing.T) {

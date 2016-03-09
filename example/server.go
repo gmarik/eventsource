@@ -16,7 +16,7 @@ func main() {
 	eventsource.Vlog = log.New(os.Stdout, "ES", log.LstdFlags)
 
 	es := eventsource.New()
-	go es.Listen()
+	go es.Serve()
 
 	go func() {
 		for i := 0; ; i += 1 {
@@ -24,12 +24,17 @@ func main() {
 				Event: "time",
 				Data:  time.Now().Format(time.RFC3339),
 			}
-			es.Push(evt)
+
+			done, _ := es.Push(evt)
+
+			<-done
 			<-time.After(1 * time.Second)
 		}
 	}()
 
 	http.Handle("/Stream", eventsource.Headers(es))
+
+	// sends initial event
 	http.Handle("/Custom", eventsource.Headers(custom(es)))
 	http.HandleFunc("/", index)
 
@@ -37,7 +42,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(":7070", nil))
 }
 
-func custom(es *eventsource.EventSource) http.Handler {
+func custom(es eventsource.EventSource) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		wfcn, ok := w.(eventsource.WriteFlushCloseNotifier)
 		if !ok {
@@ -45,17 +50,19 @@ func custom(es *eventsource.EventSource) http.Handler {
 			http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
 			return
 		}
+		wfcn.Flush()
 
-		conn := eventsource.NewConn(wfcn)
-
-		err := eventsource.WriteEvent(conn, eventsource.Event{Event: "test", Data: "Hello"})
+		err := eventsource.WriteEvent(wfcn, eventsource.Event{Event: "test", Data: "Hello"})
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
 			return
 		}
-		conn.Flush()
 
-		if err := es.Serve(conn, eventsource.WriteEvent); err != nil {
+		conn := eventsource.NewConn(wfcn)
+		es.Join(conn)
+		defer es.Leave(conn)
+
+		if err := conn.Serve(es); err != nil {
 			http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
 		}
 	})

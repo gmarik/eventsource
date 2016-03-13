@@ -1,4 +1,4 @@
-package eventsource
+package sse
 
 import (
 	"net/http"
@@ -14,7 +14,7 @@ type WriteFlushCloseNotifier interface {
 	http.CloseNotifier
 }
 
-type EventSource interface {
+type SSE interface {
 	Join(*Conn)
 	Leave(*Conn)
 	Done() <-chan struct{}

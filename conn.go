@@ -1,4 +1,4 @@
-package eventsource
+package sse
 
 // Conn represents single client connection
 type Conn struct {
@@ -27,7 +27,7 @@ func (c *Conn) Push(eventData []byte) {
 
 // Serve handles single connection and associated events like
 // disconnect, event source termination and Event delivery
-func (c *Conn) Serve(es EventSource) error {
+func (c *Conn) Serve(es SSE) error {
 	for {
 		select {
 		case <-es.Done():

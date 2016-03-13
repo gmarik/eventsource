@@ -13,14 +13,14 @@ import (
 
 func main() {
 
-	eventsource.Vlog = log.New(os.Stdout, "ES", log.LstdFlags)
+	sse.Vlog = log.New(os.Stdout, "ES", log.LstdFlags)
 
-	es := eventsource.New()
+	es := sse.New()
 	go es.Serve()
 
 	go func() {
 		for i := 0; ; i += 1 {
-			evt := eventsource.Event{
+			evt := sse.Event{
 				Event: "time",
 				Data:  time.Now().Format(time.RFC3339),
 			}
@@ -32,19 +32,19 @@ func main() {
 		}
 	}()
 
-	http.Handle("/Stream", eventsource.Headers(es))
+	http.Handle("/Stream", sse.Headers(es))
 
 	// sends initial event
-	http.Handle("/Custom", eventsource.Headers(custom(es)))
+	http.Handle("/Custom", sse.Headers(custom(es)))
 	http.HandleFunc("/", index)
 
 	log.Println("Listening on localhost:7070")
 	log.Fatal(http.ListenAndServe(":7070", nil))
 }
 
-func custom(es eventsource.EventSource) http.Handler {
+func custom(es sse.SSE) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		wfcn, ok := w.(eventsource.WriteFlushCloseNotifier)
+		wfcn, ok := w.(sse.WriteFlushCloseNotifier)
 		if !ok {
 			log.Println(http.ErrNotSupported)
 			http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
@@ -52,13 +52,13 @@ func custom(es eventsource.EventSource) http.Handler {
 		}
 		wfcn.Flush()
 
-		err := eventsource.WriteEvent(wfcn, eventsource.Event{Event: "test", Data: "Hello"})
+		err := sse.WriteEvent(wfcn, sse.Event{Event: "test", Data: "Hello"})
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
 			return
 		}
 
-		conn := eventsource.NewConn(wfcn)
+		conn := sse.NewConn(wfcn)
 		es.Join(conn)
 		defer es.Leave(conn)
 

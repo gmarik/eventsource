@@ -1,4 +1,4 @@
-package eventsource
+package sse
 
 import (
 	"fmt"

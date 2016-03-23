@@ -42,7 +42,8 @@ func main() {
 	http.HandleFunc("/", index)
 
 	log.Println("Listening on localhost:7070")
-	log.Fatal(http.ListenAndServe(":7070", nil))
+	go http.ListenAndServe(":7070", nil)
+	log.Fatal(http.ListenAndServeTLS(":7071", "example/cert.pem", "example/key.pem", nil))
 }
 
 func custom(es sse.SSE) http.Handler {

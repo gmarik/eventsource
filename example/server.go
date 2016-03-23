@@ -5,6 +5,7 @@ import (
 
 	"html/template"
 
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -32,10 +33,12 @@ func main() {
 		}
 	}()
 
-	http.Handle("/Stream", sse.Headers(es))
+	http.Handle("/clock", sse.Headers(es))
 
 	// sends initial event
-	http.Handle("/Custom", sse.Headers(custom(es)))
+	http.Handle("/custom", sse.Headers(custom(es)))
+	http.Handle("/counter", sse.Headers(http.HandlerFunc(counter)))
+	http.Handle("/counters", http.HandlerFunc(counters))
 	http.HandleFunc("/", index)
 
 	log.Println("Listening on localhost:7070")
@@ -68,8 +71,40 @@ func custom(es sse.SSE) http.Handler {
 	})
 }
 
+func counter(w http.ResponseWriter, r *http.Request) {
+	wfcn, ok := w.(sse.WriteFlushCloseNotifier)
+	if !ok {
+		log.Println(http.ErrNotSupported)
+		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+		return
+	}
+	wfcn.Flush()
+
+	for count := 0; ; count += 1 {
+		select {
+		case <-wfcn.CloseNotify():
+			return
+		case <-time.After(1 * time.Second):
+			err := sse.WriteEvent(wfcn, sse.Event{Event: "count", Data: fmt.Sprintf("%d", count)})
+			if err != nil {
+				http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+				return
+			}
+			wfcn.Flush()
+		}
+	}
+}
+
 func index(w http.ResponseWriter, r *http.Request) {
 	t, err := template.ParseFiles("example/index.html")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+	}
+
+	t.Execute(w, struct{}{})
+}
+func counters(w http.ResponseWriter, r *http.Request) {
+	t, err := template.ParseFiles("example/counters.html")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 	}

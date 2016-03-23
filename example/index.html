@@ -1,13 +1,26 @@
 <html>
 <body>
-<h1>EventSource Clock Example</h1>
-<strong id="hello"> </strong>
+<h1>EventSource </h1>
+
+<h2>Clock Example</h2>
+<strong id="hello"> &nbsp; </strong>
 </body>
 <script type="text/javascript">
 var div = document.getElementById('hello')
-var es = new EventSource('/Stream')
+var es = new EventSource('/clock')
 es.addEventListener('time', function(evt) {
   div.innerHTML = evt.data
 })
 </script>
+
+<h2>Custom Handler</h2>
+<p>
+  <a href="/custom">Custom Handler</a>
+</p>
+</html>
+
+<h2>Counters</h2>
+<p>
+  <a href="/counters">Counters</a>
+</p>
 </html>

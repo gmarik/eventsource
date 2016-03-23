@@ -1,0 +1,50 @@
+<html>
+</head>
+<style>
+.c {
+  float:left;
+  min-width: 100px;
+  min-height: 100px;
+  border: 1px solid red;
+  background-color: red;
+  padding: 10px;
+  margin: 10px;
+  font-size: 5em;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+<div id="counters">
+<div id="c1" class="c"> 0 </div>
+<div id="c2" class="c"> 0 </div>
+</div>
+<div id="plus" class="c"> + </div>
+</body>
+<script type="text/javascript">
+var add = function() {
+  var div = document.createElement('div')
+  counter(div)
+  div.className = "c"
+  var container = document.getElementById('counters')
+  container.appendChild(div)
+}
+
+var counter = function(div) {
+  var es = new EventSource('/counter')
+  es.addEventListener('count', function(evt) { div.innerHTML = evt.data })
+}
+
+var counterId = function(id) {
+  var div = document.getElementById(id)
+  counter(div)
+}
+
+counterId("c1")
+counterId("c2")
+
+var plus = document.getElementById("plus")
+plus.onclick = add
+</script>
+
+</html>

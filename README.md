@@ -32,3 +32,7 @@ see [example/server.go](https://github.com/gmarik/sse/blob/master/example/server
 [SSE]:http://www.w3.org/TR/2011/WD-eventsource-20110208/
 [EventSource]:http://www.w3.org/TR/2011/WD-eventsource-20110208/
 [net/http]:https://golang.org/pkg/net/http/
+
+
+## TODO
+- fix Join/Serve race condition: Joined client will stall all the Pushes

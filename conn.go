@@ -7,7 +7,7 @@ type Conn struct {
 	LastEventID string
 
 	pushes chan []byte
-	done   chan struct{}
+	closed chan struct{}
 }
 
 // NewConn creates connection wrapper;
@@ -16,39 +16,48 @@ func NewConn(wfcn WriteFlushCloseNotifier) *Conn {
 		c: wfcn,
 
 		pushes: make(chan []byte),
-		done:   make(chan struct{}),
+		closed: make(chan struct{}),
 	}
 }
 
-// Push writes event data to underlying connection
+// Push pushes data to be written into underlying connection
 func (c *Conn) Push(eventData []byte) {
 	c.pushes <- eventData
+}
+func (c *Conn) Done() <-chan struct{} {
+	return c.closed
+}
+
+func (c *Conn) Close() {
+	select {
+	case <-c.closed:
+	default:
+		close(c.closed)
+	}
 }
 
 // Serve handles single connection and associated events like
 // disconnect, event source termination and Event delivery
 func (c *Conn) Serve(es SSE) error {
+	var (
+		disconnected = c.c.CloseNotify()
+	)
+
 	for {
 		select {
 		case <-es.Done():
 			return nil
-		case <-c.c.CloseNotify():
-			close(c.done)
+		case <-c.closed:
+			return nil
+		case <-disconnected:
+			close(c.closed)
 			return nil
 		case data := <-c.pushes:
-			select {
-			case <-c.done:
-				// TODO: race conditnon
-				// client disconnected
-				// but c is still registered with the Broker
-				Vlog.Println("Client Disconnected already")
-			default:
-				_, err := c.c.Write(data)
-				if err != nil {
-					return err
-				}
-				c.c.Flush()
+			_, err := c.c.Write(data)
+			if err != nil {
+				return err
 			}
+			c.c.Flush()
 		}
 	}
 }

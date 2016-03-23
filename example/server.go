@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/gmarik/eventsource"
+	"github.com/gmarik/sse"
 
 	"html/template"
 

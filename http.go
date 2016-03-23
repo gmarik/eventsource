@@ -17,7 +17,7 @@ func (es *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	wfcn.WriteHeader(http.StatusOK)
 	wfcn.Flush()
 
-	es.Join(conn)
+	<-es.Join(conn)
 	defer es.Leave(conn)
 
 	if err := conn.Serve(es); err != nil {

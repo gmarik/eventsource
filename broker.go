@@ -15,13 +15,20 @@ type WriteFlushCloseNotifier interface {
 }
 
 type SSE interface {
-	Join(*Conn)
-	Leave(*Conn)
+	Join(*Conn) <-chan struct{}
+	Leave(*Conn) <-chan struct{}
 	Done() <-chan struct{}
 }
 
+// Push helper struct
 type push struct {
 	data []byte
+	done chan struct{}
+}
+
+// Join/Leave helper struct
+type op struct {
+	c    *Conn
 	done chan struct{}
 }
 
@@ -29,8 +36,8 @@ type push struct {
 type Broker struct {
 	closed chan struct{}
 	conns  map[*Conn]bool
-	joins  chan *Conn
-	leaves chan *Conn
+	joins  chan op
+	leaves chan op
 	pushes chan push
 }
 
@@ -39,18 +46,22 @@ func New() *Broker {
 	return &Broker{
 		closed: make(chan struct{}),
 		conns:  make(map[*Conn]bool),
-		joins:  make(chan *Conn),
-		leaves: make(chan *Conn),
+		joins:  make(chan op),
+		leaves: make(chan op),
 		pushes: make(chan push),
 	}
 }
 
-func (es *Broker) Join(c *Conn) {
-	es.joins <- c
+func (es *Broker) Join(c *Conn) <-chan struct{} {
+	opv := op{c, make(chan struct{})}
+	es.joins <- opv
+	return opv.done
 }
 
-func (es *Broker) Leave(c *Conn) {
-	es.leaves <- c
+func (es *Broker) Leave(c *Conn) <-chan struct{} {
+	opv := op{c, make(chan struct{})}
+	es.leaves <- opv
+	return opv.done
 }
 
 // Push delivers and Event to all current connections
@@ -85,15 +96,21 @@ func (es *Broker) Serve() error {
 		select {
 		case <-es.closed:
 			break
-		case c := <-es.leaves:
-			delete(es.conns, c)
-		case c := <-es.joins:
-			es.conns[c] = true
+		case opv := <-es.leaves:
+			delete(es.conns, opv.c)
+			close(opv.done)
+		case opv := <-es.joins:
+			es.conns[opv.c] = true
+			close(opv.done)
 		case push := <-es.pushes:
 			for conn := range es.conns {
-				// do not wait for slow recipients
-				// TODO: do not push to clients that left
-				conn.Push(push.data)
+				// TODO: do not wait for slow recipients?
+				select {
+				case <-conn.Done():
+					//skip
+				default:
+					conn.Push(push.data)
+				}
 			}
 			// TODO: should this be part of the api?
 			close(push.done)

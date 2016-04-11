@@ -1,26 +1,81 @@
 <html>
+</head>
+<style>
+.c {
+  color: white;
+  float:left;
+  min-width: 50px;
+  min-height: 50px;
+  border: 1px solid #F00000;
+  background-color: #F00000;
+  padding: 10px;
+  margin: 2;
+  font-size: 3em;
+  text-align: center;
+}
+.clear { clear: both; }
+</style>
+</head>
 <body>
-<h1>EventSource </h1>
 
-<h2>Clock Example</h2>
-<strong id="hello"> &nbsp; </strong>
+<h1>SSE Examples</h1>
+
+<p>
+Each red box with a number is a counter with values feeded from the server through a separate network connection using Server Sent Events.
+</br>
+Parallel Counters have a separate counter per connection.
+</br>
+Shared Counters share the counter(sort of pub-sub).
+</br>
+When viewed in a browser through http2 protocol the number of counters is theoretically unlimited because there's no limit of connections allowed per origin.
+</br>
+In other cases number of running counters is limited to number of active connections as per browser.
+</p>
+
+<h2>Paralell Counters</h2>
+
+<div id="parallelc">
+  <div id="c11" class="c"> 0 </div>
+</div>
+<div id="plus1" class="c"> + </div>
+
+<h2 class="clear">Shared Counters</h2>
+
+<div id="sharedc">
+<div id="c21" class="c"> 0 </div>
+</div>
+<div id="plus2" class="c"> + </div>
+
 </body>
 <script type="text/javascript">
-var div = document.getElementById('hello')
-var es = new EventSource('/clock')
-es.addEventListener('time', function(evt) {
-  div.innerHTML = evt.data
-})
+var add = function(divId, url) {
+  var div = document.createElement('div')
+  counter(div, url)
+  div.className = "c"
+  var container = document.getElementById(divId)
+  container.appendChild(div)
+}
+
+var counter = function(div, url) {
+  var es = new EventSource(url)
+  es.addEventListener('count', function(evt) { div.innerHTML = evt.data })
+}
+
+var counterId = function(id, url) {
+  var div = document.getElementById(id)
+  counter(div, url)
+}
+
+counterId("c11", '/parallelc')
+counterId("c21", '/sharedc')
+
+var plus1 = document.getElementById('plus1')
+plus1.onclick = function() { add('parallelc', '/parallelc') }
+
+var plus2 = document.getElementById('plus2')
+plus2.onclick = function() { add('sharedc', '/sharedc') }
 </script>
 
-<h2>Custom Handler</h2>
-<p>
-  <a href="/custom">Custom Handler</a>
-</p>
 </html>
 
-<h2>Counters</h2>
-<p>
-  <a href="/counters">Counters</a>
-</p>
 </html>

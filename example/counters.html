@@ -16,23 +16,36 @@
 </style>
 </head>
 <body>
-<div id="counters">
-<div id="c1" class="c"> 0 </div>
-<div id="c2" class="c"> 0 </div>
+
+<h1>SSE Examples</h1>
+<h2>Paralell Counters</h2>
+
+<div id="parallelc">
+<div id="c11" class="c"> 0 </div>
+<div id="c12" class="c"> 0 </div>
 </div>
-<div id="plus" class="c"> + </div>
+<div id="plus2" class="c"> + </div>
+
+<h2>Shared Counters</h2>
+
+<div id="sharedc">
+<div id="c21" class="c"> 0 </div>
+<div id="c22" class="c"> 0 </div>
+</div>
+<div id="plus2" class="c"> + </div>
+
 </body>
 <script type="text/javascript">
-var add = function() {
+var add = function(divId, url) {
   var div = document.createElement('div')
-  counter(div)
+  counter(div, url)
   div.className = "c"
-  var container = document.getElementById('counters')
+  var container = document.getElementById(divId)
   container.appendChild(div)
 }
 
-var counter = function(div) {
-  var es = new EventSource('/counter')
+var counter = function(div, url) {
+  var es = new EventSource()
   es.addEventListener('count', function(evt) { div.innerHTML = evt.data })
 }
 
@@ -41,11 +54,18 @@ var counterId = function(id) {
   counter(div)
 }
 
-counterId("c1")
-counterId("c2")
+counterId("c11", '/parallelc')
+counterId("c12", '/parallelc')
+counterId("c21", '/sharedc')
+counterId("c22", '/sharedc')
 
-var plus = document.getElementById("plus")
-plus.onclick = add
+var plus1 = document.getElementById('plus1')
+plus1.onclick = function() { add('parallelc', '/parallelc') }
+
+var plus2 = document.getElementById('plus2')
+plus2.onclick = function() { add('sharedc', '/sharedc') }
 </script>
+
+</html>
 
 </html>

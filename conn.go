@@ -6,24 +6,17 @@ type Conn struct {
 
 	LastEventID string
 
-	pushes chan []byte
 	closed chan struct{}
 }
 
 // NewConn creates connection wrapper;
 func NewConn(wfcn WriteFlushCloseNotifier) *Conn {
 	return &Conn{
-		c: wfcn,
-
-		pushes: make(chan []byte),
+		c:      wfcn,
 		closed: make(chan struct{}),
 	}
 }
 
-// Push pushes data to be written into underlying connection
-func (c *Conn) Push(eventData []byte) {
-	c.pushes <- eventData
-}
 func (c *Conn) Done() <-chan struct{} {
 	return c.closed
 }
@@ -43,11 +36,13 @@ func (c *Conn) Serve(es SSE) error {
 	var (
 		disconnected = c.c.CloseNotify()
 		joined       = es.join(c)
+
+		pushes chan []byte
 	)
 
 	for {
 		select {
-		case <-joined:
+		case pushes = <-joined:
 			joined = nil
 			defer es.leave(c)
 		case <-es.Done():
@@ -57,7 +52,7 @@ func (c *Conn) Serve(es SSE) error {
 		case <-disconnected:
 			close(c.closed)
 			return nil
-		case data := <-c.pushes:
+		case data := <-pushes:
 			_, err := c.c.Write(data)
 			if err != nil {
 				return err

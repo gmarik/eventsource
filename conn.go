@@ -39,12 +39,17 @@ func (c *Conn) Close() {
 // Serve handles single connection and associated events like
 // disconnect, event source termination and Event delivery
 func (c *Conn) Serve(es SSE) error {
+
 	var (
 		disconnected = c.c.CloseNotify()
+		joined       = es.join(c)
 	)
 
 	for {
 		select {
+		case <-joined:
+			joined = nil
+			defer es.leave(c)
 		case <-es.Done():
 			return nil
 		case <-c.closed:

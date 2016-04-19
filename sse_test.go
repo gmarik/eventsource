@@ -46,12 +46,12 @@ func TestJoinLeave(t *testing.T) {
 		t.Error("None expected")
 	}
 
-	<-sse.Join(c1)
+	<-sse.join(c1)
 	if _, ok := sse.conns[c1]; !ok {
 		t.Error("Join expected")
 	}
 
-	<-sse.Leave(c1)
+	<-sse.leave(c1)
 	if _, ok := sse.conns[c1]; ok {
 		t.Error("Leave expected", sse.conns)
 	}
@@ -63,6 +63,7 @@ func TestClients(t *testing.T) {
 	}
 
 	sse := New()
+	// go sse.Serve()
 
 	nclients := 1000
 
@@ -77,7 +78,6 @@ func TestClients(t *testing.T) {
 	for i := 0; i < nclients; i += 1 {
 		clients[i] = NewConn(NewTestResponseWriter())
 		go func(c *Conn, i int) {
-			<-sse.Join(c)
 			starting.Done()
 			if err := c.Serve(sse); err != nil {
 				t.Fatal(err)
@@ -87,18 +87,21 @@ func TestClients(t *testing.T) {
 		}(clients[i], i)
 	}
 
-	Vlog.Println("Starting sse")
-	go sse.Serve()
-
 	events := []Event{
 		{Data: "Hello", ID: "1", Event: "e1"},
 		{Data: "World", ID: "2", Event: "e2"},
 		{Data: "!!", ID: "3", Event: "e3"},
 	}
 
+	Vlog.Println("Starting sse")
+	go sse.Serve()
+
 	// wait for clients to connnect
 	Vlog.Println("Clients connecting")
 	starting.Wait()
+
+	// TODO: this is a smell
+	<-time.After(200 * time.Millisecond)
 
 	Vlog.Println("Sending out events")
 	for _, e := range events {
@@ -153,7 +156,7 @@ func BenchmarkIt(t *testing.B) {
 		clients[i] = NewTestResponseWriter()
 		go func(w *TestResponseWriter) {
 			conn := NewConn(w)
-			<-sse.Join(conn)
+			<-sse.join(conn)
 			starting.Done()
 			conn.Serve(sse)
 		}(clients[i])

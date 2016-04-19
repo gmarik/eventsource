@@ -15,8 +15,8 @@ type WriteFlushCloseNotifier interface {
 }
 
 type SSE interface {
-	Join(*Conn) <-chan struct{}
-	Leave(*Conn) <-chan struct{}
+	join(*Conn) <-chan struct{}
+	leave(*Conn) <-chan struct{}
 	Done() <-chan struct{}
 }
 
@@ -52,13 +52,13 @@ func New() *Broker {
 	}
 }
 
-func (es *Broker) Join(c *Conn) <-chan struct{} {
+func (es *Broker) join(c *Conn) <-chan struct{} {
 	opv := op{c, make(chan struct{})}
 	es.joins <- opv
 	return opv.done
 }
 
-func (es *Broker) Leave(c *Conn) <-chan struct{} {
+func (es *Broker) leave(c *Conn) <-chan struct{} {
 	opv := op{c, make(chan struct{})}
 	es.leaves <- opv
 	return opv.done
@@ -92,6 +92,7 @@ func (es *Broker) Done() <-chan struct{} {
 
 // Listen handles client join/leaves as well as Event multiplexing to connections
 func (es *Broker) Serve() error {
+
 	for {
 		select {
 		case <-es.closed:

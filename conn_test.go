@@ -7,6 +7,7 @@ import (
 
 func TestConn_CloseNotify(t *testing.T) {
 	sse := New()
+	go sse.Serve()
 
 	w := NewTestResponseWriter()
 	c := NewConn(w)
@@ -27,6 +28,7 @@ func TestConn_CloseNotify(t *testing.T) {
 
 func TestConn_Close(t *testing.T) {
 	sse := New()
+	go sse.Serve()
 
 	c := NewConn(NewTestResponseWriter())
 

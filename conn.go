@@ -37,16 +37,16 @@ func (c *Conn) Serve(es SSE) error {
 		err error
 
 		disconnected = c.c.CloseNotify()
-		joined       = es.join(c)
+		joinc        = es.join(c)
 
-		pushes chan []byte
+		recvc chan []byte
 	)
 
 out:
 	for {
 		select {
-		case pushes = <-joined:
-			joined = nil
+		case recvc = <-joinc:
+			joinc = nil
 		case <-es.Done():
 			break out
 		case <-c.closed:
@@ -54,7 +54,7 @@ out:
 		case <-disconnected:
 			close(c.closed)
 			break out
-		case data, ok := <-pushes:
+		case data, ok := <-recvc:
 			if !ok {
 				return nil
 			}
@@ -66,15 +66,20 @@ out:
 		}
 	}
 
-	if pushes == nil {
+	// never joined
+	if recvc == nil {
 		return err
 	}
 
-	go drain(pushes)
+	// if joined and leaving - drain the channel
+	// to not block the sender
+	go drain(recvc)
 
 	es.leave(c)
+
 	// wait until closed
-	<-pushes
+	<-recvc
+
 	return err
 }
 

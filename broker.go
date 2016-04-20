@@ -36,9 +36,9 @@ type op struct {
 type Broker struct {
 	closed chan struct{}
 	conns  map[*Conn]chan []byte
-	joins  chan op
-	leaves chan *Conn
-	pushes chan push
+	joinc  chan op
+	leavec chan *Conn
+	sendc  chan push
 }
 
 // New creates Broker
@@ -46,20 +46,20 @@ func New() *Broker {
 	return &Broker{
 		closed: make(chan struct{}),
 		conns:  make(map[*Conn](chan []byte)),
-		joins:  make(chan op),
-		leaves: make(chan *Conn),
-		pushes: make(chan push),
+		joinc:  make(chan op),
+		leavec: make(chan *Conn),
+		sendc:  make(chan push),
 	}
 }
 
 func (es *Broker) join(c *Conn) <-chan (chan []byte) {
 	opv := op{c, make(chan chan []byte)}
-	es.joins <- opv
+	es.joinc <- opv
 	return opv.done
 }
 
 func (es *Broker) leave(c *Conn) {
-	es.leaves <- c
+	es.leavec <- c
 }
 
 // Push delivers and Event to all current connections
@@ -71,7 +71,7 @@ func (es *Broker) Push(evt Event) (<-chan struct{}, error) {
 	}
 
 	p := push{buf.Bytes(), make(chan struct{})}
-	es.pushes <- p
+	es.sendc <- p
 	return p.done, nil
 }
 
@@ -94,19 +94,21 @@ func (es *Broker) Serve() error {
 	for {
 		select {
 		case <-es.closed:
+			//TODO: test this
 			break
-		case c := <-es.leaves:
+		case c := <-es.leavec:
 			close(es.conns[c])
 			delete(es.conns, c)
-		case opv := <-es.joins:
+		case opv := <-es.joinc:
 			// TODO: pool of channels
 			ch := make(chan []byte)
 			es.conns[opv.c] = ch
 			opv.done <- ch
-		case push := <-es.pushes:
+		case push := <-es.sendc:
 			for _, ch := range es.conns {
 				ch <- push.data
 			}
+			//TODO: move this into test client
 			close(push.done)
 		}
 	}

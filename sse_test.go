@@ -36,27 +36,6 @@ func (m *ResponseRecorder) Write(data []byte) (int, error) {
 	return m.ResponseRecorder.Write(data)
 }
 
-func TestJoinLeave(t *testing.T) {
-	sse := New()
-	go sse.Serve()
-
-	c1 := NewConn(NewTestResponseWriter())
-
-	if len(sse.conns) > 0 {
-		t.Error("None expected")
-	}
-
-	<-sse.join(c1)
-	if _, ok := sse.conns[c1]; !ok {
-		t.Error("Join expected")
-	}
-
-	sse.leave(c1)
-	if _, ok := sse.conns[c1]; ok {
-		t.Error("Leave expected", sse.conns)
-	}
-}
-
 func TestClients(t *testing.T) {
 	if testing.Verbose() {
 		Vlog = log.New(os.Stdout, "", log.LstdFlags)

@@ -16,7 +16,7 @@ type WriteFlushCloseNotifier interface {
 
 type SSE interface {
 	join(*Conn) <-chan chan []byte
-	leave(*Conn) <-chan chan []byte
+	leave(*Conn)
 	Done() <-chan struct{}
 }
 
@@ -26,7 +26,7 @@ type push struct {
 	done chan struct{}
 }
 
-// Join/Leave helper struct
+// join
 type op struct {
 	c    *Conn
 	done chan (chan []byte)
@@ -37,7 +37,7 @@ type Broker struct {
 	closed chan struct{}
 	conns  map[*Conn]chan []byte
 	joins  chan op
-	leaves chan op
+	leaves chan *Conn
 	pushes chan push
 }
 
@@ -47,21 +47,19 @@ func New() *Broker {
 		closed: make(chan struct{}),
 		conns:  make(map[*Conn](chan []byte)),
 		joins:  make(chan op),
-		leaves: make(chan op),
+		leaves: make(chan *Conn),
 		pushes: make(chan push),
 	}
 }
 
-func (es *Broker) join(c *Conn) <-chan chan []byte {
+func (es *Broker) join(c *Conn) <-chan (chan []byte) {
 	opv := op{c, make(chan chan []byte)}
 	es.joins <- opv
 	return opv.done
 }
 
-func (es *Broker) leave(c *Conn) <-chan chan []byte {
-	opv := op{c, make(chan chan []byte)}
-	es.leaves <- opv
-	return opv.done
+func (es *Broker) leave(c *Conn) {
+	es.leaves <- c
 }
 
 // Push delivers and Event to all current connections
@@ -97,9 +95,9 @@ func (es *Broker) Serve() error {
 		select {
 		case <-es.closed:
 			break
-		case opv := <-es.leaves:
-			close(es.conns[opv.c])
-			delete(es.conns, opv.c)
+		case c := <-es.leaves:
+			close(es.conns[c])
+			delete(es.conns, c)
 		case opv := <-es.joins:
 			// TODO: pool of channels
 			ch := make(chan []byte)

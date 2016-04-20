@@ -9,7 +9,7 @@ func TestConn_CloseNotify(t *testing.T) {
 	sse := New()
 	go sse.Serve()
 
-	w := NewTestResponseWriter()
+	w := NewResponseRecorder()
 	c := NewConn(w)
 
 	done := make(chan struct{})
@@ -30,7 +30,7 @@ func TestConn_Close(t *testing.T) {
 	sse := New()
 	go sse.Serve()
 
-	c := NewConn(NewTestResponseWriter())
+	c := NewConn(NewResponseRecorder())
 
 	done := make(chan struct{})
 	go func() {

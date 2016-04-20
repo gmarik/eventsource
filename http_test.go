@@ -7,7 +7,7 @@ import (
 )
 
 func TestBroker_ServeHTTP(t *testing.T) {
-	w := NewTestResponseWriter()
+	w := NewResponseRecorder()
 	r := &http.Request{}
 
 	sse := New()

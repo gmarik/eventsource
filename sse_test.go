@@ -12,24 +12,24 @@ import (
 	"time"
 )
 
-type TestResponseWriter struct {
+type ResponseRecorder struct {
 	*httptest.ResponseRecorder
 	gone  chan bool
 	sleep time.Duration
 }
 
-func NewTestResponseWriter() *TestResponseWriter {
-	return &TestResponseWriter{
+func NewResponseRecorder() *ResponseRecorder {
+	return &ResponseRecorder{
 		httptest.NewRecorder(),
 		make(chan bool),
 		0,
 	}
 }
 
-func (m *TestResponseWriter) CloseNotify() <-chan bool { return m.gone }
-func (m *TestResponseWriter) Close()                   { m.gone <- true }
+func (m *ResponseRecorder) CloseNotify() <-chan bool { return m.gone }
+func (m *ResponseRecorder) Close()                   { m.gone <- true }
 
-func (m *TestResponseWriter) Write(data []byte) (int, error) {
+func (m *ResponseRecorder) Write(data []byte) (int, error) {
 	if m.sleep > 0 {
 		time.Sleep(m.sleep)
 	}
@@ -77,7 +77,7 @@ func TestClients(t *testing.T) {
 
 	// process client
 	for i := 0; i < nclients; i += 1 {
-		clients[i] = NewConn(NewTestResponseWriter())
+		clients[i] = NewConn(NewResponseRecorder())
 		go func(c *Conn, i int) {
 			starting.Done()
 			if err := c.Serve(sse); err != nil {
@@ -113,7 +113,7 @@ func TestClients(t *testing.T) {
 	// disconnect clients
 	Vlog.Println("Clients leaving")
 	for _, c := range clients {
-		c.c.(*TestResponseWriter).Close()
+		c.c.(*ResponseRecorder).Close()
 	}
 
 	Vlog.Println("Clients disconnecting")
@@ -133,7 +133,7 @@ data: !!
 
 `
 	for i, c := range clients {
-		got := c.c.(*TestResponseWriter).Body.String()
+		got := c.c.(*ResponseRecorder).Body.String()
 		if got != exp {
 			t.Errorf("\nClient %d\nExp: %v\nGot: %v", i, exp, got)
 		}
@@ -147,12 +147,12 @@ func BenchmarkIt(t *testing.B) {
 	starting := &sync.WaitGroup{}
 	starting.Add(nclients)
 
-	clients := make([]*TestResponseWriter, nclients, nclients)
+	clients := make([]*ResponseRecorder, nclients, nclients)
 
 	// process client
 	for i := 0; i < nclients; i += 1 {
-		clients[i] = NewTestResponseWriter()
-		go func(w *TestResponseWriter) {
+		clients[i] = NewResponseRecorder()
+		go func(w *ResponseRecorder) {
 			conn := NewConn(w)
 			starting.Done()
 			conn.Serve(sse)

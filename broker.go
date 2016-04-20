@@ -98,24 +98,17 @@ func (es *Broker) Serve() error {
 		case <-es.closed:
 			break
 		case opv := <-es.leaves:
+			close(es.conns[opv.c])
 			delete(es.conns, opv.c)
-			close(opv.done)
 		case opv := <-es.joins:
 			// TODO: pool of channels
 			ch := make(chan []byte)
 			es.conns[opv.c] = ch
 			opv.done <- ch
 		case push := <-es.pushes:
-			for conn, ch := range es.conns {
-				// TODO: do not wait for slow recipients?
-				select {
-				case <-conn.Done():
-					//skip
-				default:
-					ch <- push.data
-				}
+			for _, ch := range es.conns {
+				ch <- push.data
 			}
-			// TODO: should this be part of the api?
 			close(push.done)
 		}
 	}

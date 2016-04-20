@@ -38,10 +38,10 @@ func (m *TestResponseWriter) Write(data []byte) (int, error) {
 
 func TestJoinLeave(t *testing.T) {
 	sse := New()
+	go sse.Serve()
 
 	c1 := NewConn(NewTestResponseWriter())
 
-	go sse.Serve()
 	if len(sse.conns) > 0 {
 		t.Error("None expected")
 	}
@@ -51,7 +51,7 @@ func TestJoinLeave(t *testing.T) {
 		t.Error("Join expected")
 	}
 
-	<-sse.leave(c1)
+	sse.leave(c1)
 	if _, ok := sse.conns[c1]; ok {
 		t.Error("Leave expected", sse.conns)
 	}
@@ -62,8 +62,9 @@ func TestClients(t *testing.T) {
 		Vlog = log.New(os.Stdout, "", log.LstdFlags)
 	}
 
+	Vlog.Println("Starting sse")
 	sse := New()
-	// go sse.Serve()
+	go sse.Serve()
 
 	nclients := 1000
 
@@ -92,9 +93,6 @@ func TestClients(t *testing.T) {
 		{Data: "World", ID: "2", Event: "e2"},
 		{Data: "!!", ID: "3", Event: "e3"},
 	}
-
-	Vlog.Println("Starting sse")
-	go sse.Serve()
 
 	// wait for clients to connnect
 	Vlog.Println("Clients connecting")
@@ -156,7 +154,6 @@ func BenchmarkIt(t *testing.B) {
 		clients[i] = NewTestResponseWriter()
 		go func(w *TestResponseWriter) {
 			conn := NewConn(w)
-			<-sse.join(conn)
 			starting.Done()
 			conn.Serve(sse)
 		}(clients[i])

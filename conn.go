@@ -34,30 +34,47 @@ func (c *Conn) Close() {
 func (c *Conn) Serve(es SSE) error {
 
 	var (
+		err error
+
 		disconnected = c.c.CloseNotify()
 		joined       = es.join(c)
 
 		pushes chan []byte
 	)
 
+out:
 	for {
 		select {
 		case pushes = <-joined:
 			joined = nil
-			defer es.leave(c)
 		case <-es.Done():
-			return nil
+			break out
 		case <-c.closed:
-			return nil
+			break out
 		case <-disconnected:
 			close(c.closed)
-			return nil
-		case data := <-pushes:
-			_, err := c.c.Write(data)
+			break out
+		case data, ok := <-pushes:
+			if !ok {
+				return nil
+			}
+			_, err = c.c.Write(data)
 			if err != nil {
-				return err
+				break out
 			}
 			c.c.Flush()
 		}
 	}
+
+	if pushes == nil {
+		return err
+	}
+
+	go es.leave(c)
+	for range pushes {
+		// drain the pushes untill disconnected
+		// so the broadcast doesn't get blocked
+	}
+
+	return err
 }

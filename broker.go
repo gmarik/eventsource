@@ -89,13 +89,14 @@ func (es *Broker) Done() <-chan struct{} {
 }
 
 // Listen handles client join/leaves as well as Event multiplexing to connections
-func (es *Broker) Serve() error {
+func (es *Broker) Serve() {
 
+out:
 	for {
 		select {
 		case <-es.closed:
 			//TODO: test this
-			break
+			break out
 		case c := <-es.leavec:
 			close(es.conns[c])
 			delete(es.conns, c)

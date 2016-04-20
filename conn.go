@@ -70,11 +70,15 @@ out:
 		return err
 	}
 
-	go es.leave(c)
-	for range pushes {
-		// drain the pushes untill disconnected
-		// so the broadcast doesn't get blocked
-	}
+	go drain(pushes)
 
+	es.leave(c)
+	// wait until closed
+	<-pushes
 	return err
+}
+
+func drain(ch chan []byte) {
+	for range ch {
+	}
 }

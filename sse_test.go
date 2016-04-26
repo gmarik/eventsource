@@ -9,20 +9,33 @@ import (
 	"os"
 	// "fmt"
 	"sync"
-	"time"
 )
+
+type TestSSE struct {
+	*Broker
+
+	wgstart, wgstop *sync.WaitGroup
+}
+
+func (t *TestSSE) join(c *Conn) <-chan (chan []byte) {
+	defer t.wgstart.Done()
+	return t.Broker.join(c)
+}
+
+func (t *TestSSE) leave(c *Conn) {
+	defer t.wgstop.Done()
+	t.Broker.leave(c)
+}
 
 type ResponseRecorder struct {
 	*httptest.ResponseRecorder
-	gone  chan bool
-	sleep time.Duration
+	gone chan bool
 }
 
 func NewResponseRecorder() *ResponseRecorder {
 	return &ResponseRecorder{
 		httptest.NewRecorder(),
 		make(chan bool),
-		0,
 	}
 }
 
@@ -30,9 +43,6 @@ func (m *ResponseRecorder) CloseNotify() <-chan bool { return m.gone }
 func (m *ResponseRecorder) Close()                   { m.gone <- true }
 
 func (m *ResponseRecorder) Write(data []byte) (int, error) {
-	if m.sleep > 0 {
-		time.Sleep(m.sleep)
-	}
 	return m.ResponseRecorder.Write(data)
 }
 
@@ -42,15 +52,17 @@ func TestClients(t *testing.T) {
 	}
 
 	Vlog.Println("Starting sse")
-	sse := New()
+	sse := &TestSSE{
+		Broker:  New(),
+		wgstart: &sync.WaitGroup{},
+		wgstop:  &sync.WaitGroup{},
+	}
 	go sse.Serve()
 
-	nclients := 1000
+	nclients := 10000
 
-	stopping := &sync.WaitGroup{}
-	stopping.Add(nclients)
-	starting := &sync.WaitGroup{}
-	starting.Add(nclients)
+	sse.wgstart.Add(nclients)
+	sse.wgstop.Add(nclients)
 
 	clients := make([]*Conn, nclients, nclients)
 
@@ -58,12 +70,10 @@ func TestClients(t *testing.T) {
 	for i := 0; i < nclients; i += 1 {
 		clients[i] = NewConn(NewResponseRecorder())
 		go func(c *Conn, i int) {
-			starting.Done()
 			if err := c.Serve(sse); err != nil {
 				t.Fatal(err)
 				return
 			}
-			stopping.Done()
 		}(clients[i], i)
 	}
 
@@ -75,12 +85,8 @@ func TestClients(t *testing.T) {
 
 	// wait for clients to connnect
 	Vlog.Println("Clients connecting")
-	starting.Wait()
+	sse.wgstart.Wait()
 
-	// TODO: this is a smell
-	<-time.After(200 * time.Millisecond)
-
-	Vlog.Println("Sending out events")
 	for _, e := range events {
 		done, err := sse.Push(e)
 		if err != nil {
@@ -96,7 +102,7 @@ func TestClients(t *testing.T) {
 	}
 
 	Vlog.Println("Clients disconnecting")
-	stopping.Wait()
+	sse.wgstop.Wait()
 
 	exp := `id: 1
 event: e1
@@ -119,12 +125,25 @@ data: !!
 	}
 }
 
-func BenchmarkIt(t *testing.B) {
-	sse := New()
+func Benchmark100(t *testing.B) {
+	benchmarkN(t, 100)
+}
+func Benchmark1000(t *testing.B) {
+	benchmarkN(t, 1000)
+}
+func Benchmark10000(t *testing.B) {
+	benchmarkN(t, 10000)
+}
 
-	nclients := 1000
-	starting := &sync.WaitGroup{}
-	starting.Add(nclients)
+func benchmarkN(t *testing.B, nclients int) {
+	sse := &TestSSE{
+		Broker:  New(),
+		wgstart: &sync.WaitGroup{},
+		wgstop:  &sync.WaitGroup{},
+	}
+	go sse.Serve()
+
+	sse.wgstart.Add(nclients)
 
 	clients := make([]*ResponseRecorder, nclients, nclients)
 
@@ -133,14 +152,11 @@ func BenchmarkIt(t *testing.B) {
 		clients[i] = NewResponseRecorder()
 		go func(w *ResponseRecorder) {
 			conn := NewConn(w)
-			starting.Done()
 			conn.Serve(sse)
 		}(clients[i])
 	}
 
-	go sse.Serve()
-
-	starting.Wait()
+	sse.wgstart.Wait()
 
 	Vlog.Println("Sending out events")
 

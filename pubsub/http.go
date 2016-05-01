@@ -13,7 +13,7 @@ type WriteFlushCloseNotifier interface {
 }
 
 // ServeHTTP implements http.Handler interface
-func (es *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (es *PubSub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	wfcn, ok := w.(WriteFlushCloseNotifier)
 	if !ok {
 		http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)

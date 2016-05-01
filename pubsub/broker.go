@@ -22,8 +22,8 @@ type op struct {
 	done chan (chan []byte)
 }
 
-// Broker handles all the clients and Event delivery
-type Broker struct {
+// PubSub handles all the clients and Event delivery
+type PubSub struct {
 	closed chan struct{}
 	conns  map[*Conn]chan []byte
 	joinc  chan op
@@ -31,9 +31,9 @@ type Broker struct {
 	sendc  chan push
 }
 
-// New creates Broker
-func New() *Broker {
-	return &Broker{
+// New creates PubSub
+func New() *PubSub {
+	return &PubSub{
 		closed: make(chan struct{}),
 		conns:  make(map[*Conn](chan []byte)),
 		joinc:  make(chan op),
@@ -42,18 +42,18 @@ func New() *Broker {
 	}
 }
 
-func (es *Broker) join(c *Conn) <-chan (chan []byte) {
+func (es *PubSub) join(c *Conn) <-chan chan []byte {
 	opv := op{c, make(chan chan []byte)}
 	es.joinc <- opv
 	return opv.done
 }
 
-func (es *Broker) leave(c *Conn) {
+func (es *PubSub) leave(c *Conn) {
 	es.leavec <- c
 }
 
 // Push delivers and Event to all current connections
-func (es *Broker) Push(evt Marshaller) (<-chan struct{}, error) {
+func (es *PubSub) Push(evt Marshaller) (<-chan struct{}, error) {
 
 	data, err := evt.MarshalSSEvent()
 	if err != nil {
@@ -66,7 +66,7 @@ func (es *Broker) Push(evt Marshaller) (<-chan struct{}, error) {
 }
 
 // Close effectively shuts down listening process
-func (es *Broker) Close() {
+func (es *PubSub) Close() {
 	select {
 	case <-es.closed:
 	default:
@@ -74,12 +74,12 @@ func (es *Broker) Close() {
 	}
 }
 
-func (es *Broker) Done() <-chan struct{} {
+func (es *PubSub) Done() <-chan struct{} {
 	return es.closed
 }
 
 // Listen handles client join/leaves as well as Event multiplexing to connections
-func (es *Broker) Serve() {
+func (es *PubSub) Serve() {
 
 out:
 	for {

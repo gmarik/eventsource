@@ -9,6 +9,7 @@ import (
 	"os"
 	// "fmt"
 	"sync"
+	"time"
 
 	"github.com/gmarik/eventsource"
 
@@ -17,25 +18,19 @@ import (
 
 type ResponseRecorder struct {
 	*httptest.ResponseRecorder
-	done     chan bool
-	ctx      context.Context
-	cancelFn context.CancelFunc
+	done chan bool
 }
 
 func NewResponseRecorder() *ResponseRecorder {
-	ctx, cancelFn := context.WithCancel(context.Background())
 	return &ResponseRecorder{
 		httptest.NewRecorder(),
 		make(chan bool),
-		ctx,
-		cancelFn,
 	}
 }
 
 func (m *ResponseRecorder) CloseNotify() <-chan bool { return m.done }
 func (m *ResponseRecorder) Close() {
 	close(m.done)
-	m.cancelFn()
 }
 
 func TestClients(t *testing.T) {
@@ -44,10 +39,10 @@ func TestClients(t *testing.T) {
 	}
 
 	Vlog.Println("Starting sse")
-	ps := New()
-
 	wgstart := &sync.WaitGroup{}
 	wgstop := &sync.WaitGroup{}
+
+	ps := New()
 
 	ps.joinCallback = func() {
 		wgstart.Done()
@@ -65,11 +60,13 @@ func TestClients(t *testing.T) {
 
 	clients := make([]*ResponseRecorder, nclients, nclients)
 
+	ctx, cancelFn := context.WithCancel(context.Background())
+
 	// process client
 	for i := 0; i < nclients; i += 1 {
 		clients[i] = NewResponseRecorder()
 		go func(rr *ResponseRecorder, i int) {
-			if err := ps.Serve(rr.ctx, rr); err != nil {
+			if err := ps.Serve(ctx, rr); err != nil {
 				t.Fatal(err)
 				return
 			}
@@ -96,9 +93,8 @@ func TestClients(t *testing.T) {
 
 	// disconnect clients
 	Vlog.Println("Clients leaving")
-	for _, rr := range clients {
-		rr.Close()
-	}
+	cancelFn()
+
 	Vlog.Println("Clients disconnecting")
 	wgstop.Wait()
 
@@ -143,6 +139,9 @@ func benchmarkN(t *testing.B, nclients int) {
 
 	go ps.Listen()
 
+	ctx, cancelFn := context.WithCancel(context.Background())
+	defer cancelFn()
+
 	wgstart.Add(nclients)
 
 	clients := make([]*ResponseRecorder, nclients, nclients)
@@ -151,7 +150,7 @@ func benchmarkN(t *testing.B, nclients int) {
 	for i := 0; i < nclients; i += 1 {
 		clients[i] = NewResponseRecorder()
 		go func(rr *ResponseRecorder) {
-			ps.Serve(context.Background(), rr)
+			ps.Serve(ctx, rr)
 		}(clients[i])
 	}
 
@@ -170,4 +169,26 @@ func benchmarkN(t *testing.B, nclients int) {
 		<-done
 	}
 	t.StopTimer()
+}
+
+func Test_Serve_Cancel(t *testing.T) {
+	w := NewResponseRecorder()
+
+	ps := New()
+	go ps.Listen()
+
+	ctx, cancelFn := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+	go func() {
+		ps.Serve(ctx, w)
+		close(done)
+	}()
+	cancelFn()
+
+	select {
+	case <-done:
+	case <-time.After(1 * time.Second):
+		t.Fatal("Timed out")
+	}
 }

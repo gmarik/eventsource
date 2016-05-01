@@ -18,7 +18,7 @@ func Test_ResponseWriter_Close(t *testing.T) {
 		t.Fatal("Timed out")
 	}
 	select {
-	case <-w.ctx.Done():
+	case <-w.CloseNotify():
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("Timed out")
 	}

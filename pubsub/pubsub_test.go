@@ -51,7 +51,7 @@ func TestClients(t *testing.T) {
 		wgstop.Done()
 	}
 
-	go ps.Listen()
+	go ps.Listen(context.Background())
 
 	nclients := 10000
 
@@ -59,7 +59,6 @@ func TestClients(t *testing.T) {
 	wgstop.Add(nclients)
 
 	clients := make([]*ResponseRecorder, nclients, nclients)
-
 	ctx, cancelFn := context.WithCancel(context.Background())
 
 	// process client
@@ -137,7 +136,7 @@ func benchmarkN(t *testing.B, nclients int) {
 		wgstart.Done()
 	}
 
-	go ps.Listen()
+	go ps.Listen(context.Background())
 
 	ctx, cancelFn := context.WithCancel(context.Background())
 	defer cancelFn()
@@ -175,13 +174,32 @@ func Test_Serve_Cancel(t *testing.T) {
 	w := NewResponseRecorder()
 
 	ps := New()
-	go ps.Listen()
+	go ps.Listen(context.Background())
 
 	ctx, cancelFn := context.WithCancel(context.Background())
 
 	done := make(chan struct{})
 	go func() {
 		ps.Serve(ctx, w)
+		close(done)
+	}()
+	cancelFn()
+
+	select {
+	case <-done:
+	case <-time.After(1 * time.Second):
+		t.Fatal("Timed out")
+	}
+}
+
+func Test_Listen_Cancel(t *testing.T) {
+
+	ps := New()
+	ctx, cancelFn := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+	go func() {
+		ps.Listen(ctx)
 		close(done)
 	}()
 	cancelFn()

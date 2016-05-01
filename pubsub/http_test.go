@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/gmarik/eventsource"
+
+	"golang.org/x/net/context"
 )
 
 func Test_ResponseWriter_Close(t *testing.T) {
@@ -56,7 +58,7 @@ func TestBroker_ServeHTTP(t *testing.T) {
 		wgstop.Done()
 	}
 
-	go ps.Listen()
+	go ps.Listen(context.Background())
 	go ps.ServeHTTP(w, &http.Request{})
 
 	wgstart.Wait()

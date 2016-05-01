@@ -65,26 +65,13 @@ func (es *PubSub) Push(evt Marshaller) (<-chan struct{}, error) {
 	return p.done, nil
 }
 
-// Close effectively shuts down listening process
-func (es *PubSub) Close() {
-	select {
-	case <-es.closed:
-	default:
-		close(es.closed)
-	}
-}
-
-func (es *PubSub) Done() <-chan struct{} {
-	return es.closed
-}
-
 // Listen handles client join/leaves as well as Event multiplexing to connections
-func (es *PubSub) Listen() {
+func (es *PubSub) Listen(ctx context.Context) {
 
 out:
 	for {
 		select {
-		case <-es.closed:
+		case <-ctx.Done():
 			//TODO: test this
 			break out
 		case c := <-es.leavec:
@@ -128,8 +115,6 @@ out:
 		case ch := <-joinc:
 			recvc = ch
 			joinc = nil
-		case <-es.Done():
-			break out
 		case <-ctx.Done():
 			break out
 		case data, ok := <-recvc:

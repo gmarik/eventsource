@@ -1,8 +1,16 @@
-package sse
+package pubsub
 
 import (
 	"net/http"
 )
+
+// WriteFlushCloseNotifier is a composite of required interfaces
+// for EventSource protocol to work
+type WriteFlushCloseNotifier interface {
+	http.ResponseWriter
+	http.Flusher
+	http.CloseNotifier
+}
 
 // ServeHTTP implements http.Handler interface
 func (es *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {

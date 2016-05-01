@@ -1,4 +1,4 @@
-package sse
+package pubsub
 
 import (
 	"testing"

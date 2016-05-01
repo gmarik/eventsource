@@ -1,22 +1,24 @@
-package sse
+package pubsub
 
 import (
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/gmarik/eventsource"
 )
 
 func TestBroker_ServeHTTP(t *testing.T) {
 	w := NewResponseRecorder()
 	r := &http.Request{}
 
-	sse := New()
-	go sse.Serve()
-	go sse.ServeHTTP(w, r)
+	ps := New()
+	go ps.Serve()
+	go ps.ServeHTTP(w, r)
 
 	<-time.After(100 * time.Millisecond)
 
-	done, _ := sse.Push(Event{Data: "Hello"})
+	done, _ := ps.Push(sse.Event{Data: "Hello"})
 	<-done
 
 	w.Close()

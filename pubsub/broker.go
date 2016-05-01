@@ -1,17 +1,7 @@
-package sse
+package pubsub
 
-import (
-	"net/http"
-
-	"bytes"
-)
-
-// WriteFlushCloseNotifier is a composite of required interfaces
-// for EventSource protocol to work
-type WriteFlushCloseNotifier interface {
-	http.ResponseWriter
-	http.Flusher
-	http.CloseNotifier
+type Marshaller interface {
+	MarshalSSEvent() ([]byte, error)
 }
 
 type SSE interface {
@@ -63,14 +53,14 @@ func (es *Broker) leave(c *Conn) {
 }
 
 // Push delivers and Event to all current connections
-func (es *Broker) Push(evt Event) (<-chan struct{}, error) {
+func (es *Broker) Push(evt Marshaller) (<-chan struct{}, error) {
 
-	buf := &bytes.Buffer{}
-	if err := WriteEvent(buf, evt); err != nil {
+	data, err := evt.MarshalSSEvent()
+	if err != nil {
 		return nil, err
 	}
 
-	p := push{buf.Bytes(), make(chan struct{})}
+	p := push{data, make(chan struct{})}
 	es.sendc <- p
 	return p.done, nil
 }

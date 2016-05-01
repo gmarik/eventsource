@@ -1,4 +1,4 @@
-package sse
+package pubsub
 
 import (
 	"io/ioutil"
@@ -7,5 +7,5 @@ import (
 
 var (
 	// Vlog - verbose log; Discards messages by default
-	Vlog = log.New(ioutil.Discard, "[ES]", log.LstdFlags)
+	Vlog = log.New(ioutil.Discard, "[SSE]", log.LstdFlags)
 )

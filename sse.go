@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"bytes"
 )
 
 // Event represents data to be pushed
@@ -18,8 +20,16 @@ type Event struct {
 	Retry uint
 }
 
-// EventWriterFunc is an adapter to enable custome EventWriter implementations
-type EventWriterFunc func(io.Writer, Event) error
+func (e Event) MarshalSSEvent() ([]byte, error) {
+	var buf = &bytes.Buffer{}
+
+	if err := WriteEvent(buf, e); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+
+}
 
 // WriteEvent writes an Event into an io.Writer
 func WriteEvent(w io.Writer, evt Event) (err error) {

@@ -1,4 +1,4 @@
-package sse
+package pubsub
 
 // Conn represents single client connection
 type Conn struct {

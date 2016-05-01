@@ -5,8 +5,8 @@ type Marshaller interface {
 }
 
 type SSE interface {
-	join(*Conn) <-chan chan []byte
-	leave(*Conn)
+	join(ResponseWriteFlusher) <-chan chan []byte
+	leave(ResponseWriteFlusher)
 	Done() <-chan struct{}
 }
 
@@ -18,16 +18,16 @@ type push struct {
 
 // join
 type op struct {
-	c    *Conn
+	c    ResponseWriteFlusher
 	done chan (chan []byte)
 }
 
 // PubSub handles all the clients and Event delivery
 type PubSub struct {
 	closed chan struct{}
-	conns  map[*Conn]chan []byte
+	conns  map[ResponseWriteFlusher]chan []byte
 	joinc  chan op
-	leavec chan *Conn
+	leavec chan ResponseWriteFlusher
 	sendc  chan push
 }
 
@@ -35,20 +35,20 @@ type PubSub struct {
 func New() *PubSub {
 	return &PubSub{
 		closed: make(chan struct{}),
-		conns:  make(map[*Conn](chan []byte)),
+		conns:  make(map[ResponseWriteFlusher](chan []byte)),
 		joinc:  make(chan op),
-		leavec: make(chan *Conn),
+		leavec: make(chan ResponseWriteFlusher),
 		sendc:  make(chan push),
 	}
 }
 
-func (es *PubSub) join(c *Conn) <-chan chan []byte {
+func (es *PubSub) join(c ResponseWriteFlusher) <-chan chan []byte {
 	opv := op{c, make(chan chan []byte)}
 	es.joinc <- opv
 	return opv.done
 }
 
-func (es *PubSub) leave(c *Conn) {
+func (es *PubSub) leave(c ResponseWriteFlusher) {
 	es.leavec <- c
 }
 
@@ -79,7 +79,7 @@ func (es *PubSub) Done() <-chan struct{} {
 }
 
 // Listen handles client join/leaves as well as Event multiplexing to connections
-func (es *PubSub) Serve() {
+func (es *PubSub) Listen() {
 
 out:
 	for {

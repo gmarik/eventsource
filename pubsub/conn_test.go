@@ -5,39 +5,18 @@ import (
 	"time"
 )
 
-func TestConn_CloseNotify(t *testing.T) {
-	sse := New()
-	go sse.Serve()
-
+func TestConn_Cancel(t *testing.T) {
 	w := NewResponseRecorder()
-	c := NewConn(w)
+
+	ps := New()
+	go ps.Listen()
 
 	done := make(chan struct{})
 	go func() {
-		c.Serve(sse)
+		ps.Serve(w.ctx, w)
 		close(done)
 	}()
 	w.Close()
-
-	select {
-	case <-done:
-	case <-time.After(1 * time.Second):
-		t.Fatal("Timed out")
-	}
-}
-
-func TestConn_Close(t *testing.T) {
-	sse := New()
-	go sse.Serve()
-
-	c := NewConn(NewResponseRecorder())
-
-	done := make(chan struct{})
-	go func() {
-		c.Serve(sse)
-		close(done)
-	}()
-	c.Close()
 
 	select {
 	case <-done:

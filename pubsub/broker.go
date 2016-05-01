@@ -4,12 +4,6 @@ type Marshaller interface {
 	MarshalSSEvent() ([]byte, error)
 }
 
-type SSE interface {
-	join(ResponseWriteFlusher) <-chan chan []byte
-	leave(ResponseWriteFlusher)
-	Done() <-chan struct{}
-}
-
 // Push helper struct
 type push struct {
 	data []byte
@@ -29,6 +23,8 @@ type PubSub struct {
 	joinc  chan op
 	leavec chan ResponseWriteFlusher
 	sendc  chan push
+
+	joinCallback, leaveCallback func()
 }
 
 // New creates PubSub
@@ -90,11 +86,17 @@ out:
 		case c := <-es.leavec:
 			close(es.conns[c])
 			delete(es.conns, c)
+			if es.leaveCallback != nil {
+				es.leaveCallback()
+			}
 		case opv := <-es.joinc:
 			// TODO: pool of channels
 			ch := make(chan []byte)
 			es.conns[opv.c] = ch
 			opv.done <- ch
+			if es.joinCallback != nil {
+				es.joinCallback()
+			}
 		case push := <-es.sendc:
 			for _, ch := range es.conns {
 				ch <- push.data

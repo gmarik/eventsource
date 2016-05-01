@@ -41,27 +41,32 @@ func TestBroker_ServeHTTP(t *testing.T) {
 		t.Fatal("Not implemented")
 	}
 
-	ps := &TestSSE{
-		PubSub:  New(),
-		wgstart: &sync.WaitGroup{},
-		wgstop:  &sync.WaitGroup{},
-	}
+	ps := New()
 
 	nclients := 1
-	ps.wgstart.Add(nclients)
-	ps.wgstop.Add(nclients)
+	wgstart := &sync.WaitGroup{}
+	wgstop := &sync.WaitGroup{}
+	wgstart.Add(nclients)
+	wgstop.Add(nclients)
+
+	ps.joinCallback = func() {
+		wgstart.Done()
+	}
+	ps.leaveCallback = func() {
+		wgstop.Done()
+	}
 
 	go ps.Listen()
 	go ps.ServeHTTP(w, &http.Request{})
 
-	ps.wgstart.Wait()
+	wgstart.Wait()
 
 	done, _ := ps.Push(sse.Event{Data: "Hello"})
 	<-done
 
 	w.Close()
 
-	ps.wgstop.Wait()
+	wgstop.Wait()
 
 	if w.Code != http.StatusOK {
 		t.Errorf("%v\nWant: %v", w.Code, http.StatusOK)

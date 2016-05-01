@@ -3,38 +3,17 @@ package pubsub
 import (
 	"testing"
 
-	"net/http"
 	"net/http/httptest"
 
 	"log"
 	"os"
 	// "fmt"
 	"sync"
-	"time"
 
 	"github.com/gmarik/eventsource"
 
 	"golang.org/x/net/context"
 )
-
-type TestSSE struct {
-	*PubSub
-
-	wgstart, wgstop *sync.WaitGroup
-}
-
-func (t *TestSSE) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	t.wgstart.Done()
-	defer t.wgstop.Done()
-
-	t.PubSub.ServeHTTP(w, r)
-}
-
-func (t *TestSSE) Serve(ctx context.Context, rwf ResponseWriteFlusher) error {
-	t.wgstart.Done()
-	defer t.wgstop.Done()
-	return t.PubSub.Serve(ctx, rwf)
-}
 
 type ResponseRecorder struct {
 	*httptest.ResponseRecorder
@@ -65,17 +44,24 @@ func TestClients(t *testing.T) {
 	}
 
 	Vlog.Println("Starting sse")
-	ps := &TestSSE{
-		PubSub:  New(),
-		wgstart: &sync.WaitGroup{},
-		wgstop:  &sync.WaitGroup{},
+	ps := New()
+
+	wgstart := &sync.WaitGroup{}
+	wgstop := &sync.WaitGroup{}
+
+	ps.joinCallback = func() {
+		wgstart.Done()
 	}
+	ps.leaveCallback = func() {
+		wgstop.Done()
+	}
+
 	go ps.Listen()
 
 	nclients := 10000
 
-	ps.wgstart.Add(nclients)
-	ps.wgstop.Add(nclients)
+	wgstart.Add(nclients)
+	wgstop.Add(nclients)
 
 	clients := make([]*ResponseRecorder, nclients, nclients)
 
@@ -98,9 +84,7 @@ func TestClients(t *testing.T) {
 
 	// wait for clients to connnect
 	Vlog.Println("Clients connecting")
-	ps.wgstart.Wait()
-	// TODO: sync properly
-	<-time.After(300 * time.Millisecond)
+	wgstart.Wait()
 
 	for _, e := range events {
 		done, err := ps.Push(e)
@@ -116,7 +100,7 @@ func TestClients(t *testing.T) {
 		rr.Close()
 	}
 	Vlog.Println("Clients disconnecting")
-	ps.wgstop.Wait()
+	wgstop.Wait()
 
 	exp := `id: 1
 event: e1
@@ -150,14 +134,16 @@ func Benchmark10000(t *testing.B) {
 }
 
 func benchmarkN(t *testing.B, nclients int) {
-	ps := &TestSSE{
-		PubSub:  New(),
-		wgstart: &sync.WaitGroup{},
-		wgstop:  &sync.WaitGroup{},
+	ps := New()
+	wgstart := &sync.WaitGroup{}
+
+	ps.joinCallback = func() {
+		wgstart.Done()
 	}
+
 	go ps.Listen()
 
-	ps.wgstart.Add(nclients)
+	wgstart.Add(nclients)
 
 	clients := make([]*ResponseRecorder, nclients, nclients)
 
@@ -169,7 +155,7 @@ func benchmarkN(t *testing.B, nclients int) {
 		}(clients[i])
 	}
 
-	ps.wgstart.Wait()
+	wgstart.Wait()
 
 	Vlog.Println("Sending out events")
 
